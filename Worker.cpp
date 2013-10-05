@@ -2,21 +2,42 @@
 #include <stdlib.h>
 #include <iostream>
 #include <cstring>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <fcntl.h> 
+#include "Epoll.h"
 
 using namespace std;
+
+void cb(uint32_t a, uint16_t b)
+{
+    cout<<"\nb="<<b<<"\n";;
+}
+
 class Worker
 {
     private:
         int mainSock;
+        Epoll event;
     public:
         Worker(int sock)
         {
            this->mainSock = sock;
-           cout<<this->mainSock<<"\n";
+           
+           fcntl(this->mainSock, F_SETFL, fcntl(this->mainSock, F_GETFD, 0)|O_NONBLOCK);
+        }
+        void serve()
+        {
+            event.add(this->mainSock, EV_READ, cb, NULL, 123);
+            event.loop();
+        }
+        void ccbb(uint32_t fd, uint16_t flag)
+        {
+            cout<<"fd:"<<fd<<" "<<"flag:"<<flag<<"\n";
         }
 };
+
 
 main ()
 {
@@ -42,5 +63,5 @@ main ()
         exit(112);
     }
     Worker worker(sock_fd);
-    while(1){} 
+    worker.serve();
 }
