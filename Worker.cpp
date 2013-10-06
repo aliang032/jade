@@ -1,12 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
-#include <cstring>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <fcntl.h> 
-#include "Epoll.h"
+#include "Worker.h"
 
 using namespace std;
 
@@ -15,28 +7,25 @@ void cb(uint32_t a, uint16_t b)
     cout<<"\nb="<<b<<"\n";;
 }
 
-class Worker
+Worker::Worker(int sock)
 {
-    private:
-        int mainSock;
-        Epoll event;
-    public:
-        Worker(int sock)
-        {
-           this->mainSock = sock;
+   this->mainSock = sock;
            
-           fcntl(this->mainSock, F_SETFL, fcntl(this->mainSock, F_GETFD, 0)|O_NONBLOCK);
-        }
-        void serve()
-        {
-            event.add(this->mainSock, EV_READ, cb, NULL, 123);
-            event.loop();
-        }
-        void ccbb(uint32_t fd, uint16_t flag)
-        {
-            cout<<"fd:"<<fd<<" "<<"flag:"<<flag<<"\n";
-        }
-};
+   fcntl(this->mainSock, F_SETFL, fcntl(this->mainSock, F_GETFD, 0)|O_NONBLOCK);
+}
+
+Worker::~Worker(){}
+
+void Worker::serve()
+{
+    event.add(this->mainSock, EV_READ, this, &Worker::ccbb, 123);
+    event.loop();
+}
+
+void Worker::ccbb(uint32_t fd, uint16_t flag)
+{
+    cout<<"fd:"<<fd<<" "<<"flag:"<<flag<<"\n";
+}
 
 
 main ()

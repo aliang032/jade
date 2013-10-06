@@ -1,31 +1,30 @@
 #ifndef Epoll_H
-
 #include <iostream>
 #include <sys/epoll.h>
 #include <map>
 #include <string>
 #include <stdio.h>
 
-typedef void (*event_callback_fn)(uint32_t, uint16_t);
-
+template <class tClass>
 struct eventItem
 {
     struct epoll_event event;
-    event_callback_fn fn; 
+    tClass * object;
+    void ((tClass::*method)(uint32_t, uint16_t)); 
 };
 
 enum EVENT_FLAG {EV_READ};
 
 using namespace std;
-class Epoll
+template <class T> class Epoll
 {
     private:
-        map < uint32_t, map < uint16_t ,struct eventItem > > allEvents;
+        map < uint32_t, map < uint16_t ,struct eventItem<T> > > allEvents;
         uint32_t eventBase;
     public:
         Epoll();
         ~Epoll();
-        int add(uint32_t fd, uint16_t flag, event_callback_fn fn, void *args, uint32_t timeout);
+        int add(uint32_t fd, uint16_t flag, T *pObject, void ((T::*pMethod)(uint32_t, uint16_t)), uint32_t timeout);
         void loop();
 };
 
