@@ -10,18 +10,22 @@
 #include "Epoll.h"
 #include "Epoll.cpp"
 
+
 using namespace std;
 
 class Worker
 {
     private:
-        int mainSock;
+        map<uint32_t, string> recvBuf;
+        uint32_t mainSock;
         Epoll<Worker> event;
     public:
+        static const uint32_t MAX_BUF_SIZE;
         Worker(int sock);
         ~Worker();
         void serve();
-        void ccbb(uint32_t fd, uint16_t flag);
+        void acceptConnection(uint32_t fd, uint16_t flag);
+        void readFromConnection(uint32_t fd, uint16_t flag);
 };
 
 typedef void (Worker::*workerMethod)(uint32_t , uint16_t);

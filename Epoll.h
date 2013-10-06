@@ -9,11 +9,12 @@ template <class tClass>
 struct eventItem
 {
     struct epoll_event event;
+    uint32_t timeout_ms;
     tClass * object;
     void ((tClass::*method)(uint32_t, uint16_t)); 
 };
 
-enum EVENT_FLAG {EV_READ};
+enum EVENT_FLAG {EV_ACCEPT, EV_READ};
 
 using namespace std;
 template <class T> class Epoll
@@ -24,7 +25,8 @@ template <class T> class Epoll
     public:
         Epoll();
         ~Epoll();
-        int add(uint32_t fd, uint16_t flag, T *pObject, void ((T::*pMethod)(uint32_t, uint16_t)), uint32_t timeout);
+        int add(uint32_t fd, uint16_t flag, T *pObject, void ((T::*pMethod)(uint32_t, uint16_t)), uint32_t timeout_ms);
+        void del(uint32_t fd, uint16_t flag);
         void loop();
 };
 

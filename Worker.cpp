@@ -2,11 +2,6 @@
 
 using namespace std;
 
-void cb(uint32_t a, uint16_t b)
-{
-    cout<<"\nb="<<b<<"\n";;
-}
-
 Worker::Worker(int sock)
 {
    this->mainSock = sock;
@@ -18,15 +13,39 @@ Worker::~Worker(){}
 
 void Worker::serve()
 {
-    event.add(this->mainSock, EV_READ, this, &Worker::ccbb, 123);
-    event.loop();
+    this->event.add(this->mainSock, EV_ACCEPT, this, &Worker::acceptConnection, 0);
+    this->event.loop();
 }
 
-void Worker::ccbb(uint32_t fd, uint16_t flag)
+void Worker::acceptConnection(uint32_t fd, uint16_t flag)
 {
-    cout<<"fd:"<<fd<<" "<<"flag:"<<flag<<"\n";
+    socklen_t sockLen = sizeof(struct sockaddr_in);
+    struct sockaddr_in stClientAddr;
+    uint32_t newConnection = accept(fd, (sockaddr *)(&stClientAddr), &sockLen);
+    if(newConnection < 0)
+    {
+        return;
+    }
+    this->event.add(newConnection, EV_READ, this, &Worker::readFromConnection, 1000);
+    char buf[Worker::MAX_BUF_SIZE];
+    memset(buf, 0, Worker::MAX_BUF_SIZE);
+    this->recvBuf.insert(pair<uint32_t, string>(newConnection, buf));
 }
 
+void Worker::readFromConnection(uint32_t fd, uint16_t flag)
+{
+    char buf[Worker::MAX_BUF_SIZE];
+    memset(buf, 0, Worker::MAX_BUF_SIZE);
+    uint32_t uiCount = read(fd, buf, Worker::MAX_BUF_SIZE);
+    if(uiCount)
+    {
+        this->recvBuf[fd] += buf;
+    }
+    cout<<"count"<<uiCount<<" "<<this->recvBuf[fd]<<"\n";
+    cout<<"read\n";
+}
+
+const uint32_t Worker::MAX_BUF_SIZE = 102400;
 
 main ()
 {
