@@ -5,8 +5,7 @@ using namespace std;
 Worker::Worker(int sock)
 {
    this->mainSock = sock;
-           
-   fcntl(this->mainSock, F_SETFL, fcntl(this->mainSock, F_GETFD, 0)|O_NONBLOCK);
+   this->setNonblock(this->mainSock);        
 }
 
 Worker::~Worker(){}
@@ -22,54 +21,94 @@ void Worker::acceptConnection(uint32_t fd, uint16_t flag)
     socklen_t sockLen = sizeof(struct sockaddr_in);
     struct sockaddr_in stClientAddr;
     uint32_t newConnection = accept(fd, (sockaddr *)(&stClientAddr), &sockLen);
-    if(newConnection < 0)
+    if(newConnection <= 0)
     {
         return;
     }
-    this->event.add(newConnection, EV_READ, this, &Worker::readFromConnection, 1000);
-    char buf[Worker::MAX_BUF_SIZE];
-    memset(buf, 0, Worker::MAX_BUF_SIZE);
-    this->recvBuf.insert(pair<uint32_t, string>(newConnection, buf));
+    connectionItem stConItem;
+    this->connections.insert(pair<uint32_t, connectionItem>(newConnection, stConItem));
+    this->connections[newConnection].fd = newConnection;
+    this->connections[newConnection].recv_buf = "";
+    this->setNonblock(this->connections[newConnection].fd);
+    this->event.add(this->connections[newConnection].fd, EV_READ, this, &Worker::baseDealInput, 1000);
 }
 
-void Worker::readFromConnection(uint32_t fd, uint16_t flag)
+void Worker::baseDealInput(uint32_t fd, uint16_t flag)
 {
-    char buf[Worker::MAX_BUF_SIZE];
-    memset(buf, 0, Worker::MAX_BUF_SIZE);
-    uint32_t uiCount = read(fd, buf, Worker::MAX_BUF_SIZE);
-    if(uiCount)
+    this->currentConnection = fd;
+    char cBuf[Worker::MAX_BUF_SIZE + 1];
+    memset(cBuf, 0, Worker::MAX_BUF_SIZE + 1);
+    int32_t iCount = recv(fd, cBuf, Worker::MAX_BUF_SIZE, 0);
+    if(iCount > 0)
     {
-        this->recvBuf[fd] += buf;
+        this->connections[fd].recv_buf += cBuf;
     }
-    cout<<"count"<<uiCount<<" "<<this->recvBuf[fd]<<"\n";
-    cout<<"read\n";
+    else if((iCount < 0 && EAGAIN == errno) || iCount == 0)
+    {
+        printf("readFromConnection Fail errno:%d", errno);
+        if(EAGAIN == errno)
+        {
+            this->closeConnection(fd);
+        }
+    }
+    cout<<"read:count"<<iCount<<" "<<this->connections[fd].recv_buf<<"\n";
+    int32_t iRemainLength = this->dealInput(this->connections[fd].recv_buf);
+    if(iRemainLength == 0)
+    {
+        this->dealProcess(this->connections[fd].recv_buf);
+    }
+    else if(iRemainLength < 0)
+    {
+        printf("iRemainLength:%d<0", iRemainLength);
+        this->closeConnection(fd);
+    }
 }
 
-const uint32_t Worker::MAX_BUF_SIZE = 102400;
-
-main ()
+int32_t Worker::dealInput(string &strData)
 {
-    int sock_fd;
-    struct sockaddr_in my_addr;
-    if((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-    {
-       cout<<"socket create err\n";
-       exit(110);
-    }
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(3301);
-    my_addr.sin_addr.s_addr = INADDR_ANY;
-    memset(&(my_addr.sin_zero), 0, 8);
-    if(bind(sock_fd, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1)
-    {
-        cout<<"bind fail\n";
-        exit(111);
-    }
-    if(listen(sock_fd, 10) == -1)
-    {
-        cout<<"listen fail\n";
-        exit(112);
-    }
-    Worker worker(sock_fd);
-    worker.serve();
+    return 0;
 }
+
+void Worker::dealProcess(string &strData)
+{
+   this->sendToClient("HELLO\n");
+}
+
+int32_t Worker::sendToClient(string &strData)
+{
+    int32_t iCount = send(this->currentConnection, strData.c_str(), strData.size(), 0);
+    return iCount;
+}
+
+int32_t Worker::sendToClient(const string strData)
+{
+    int32_t iCount = send(this->currentConnection, strData.c_str(), strData.size(), 0);
+    return iCount;
+}
+
+void Worker::closeConnection(uint32_t fd)
+{
+    this->event.del(fd);
+    if(this->connections.find(fd) != this->connections.end())
+    {
+        this->connections.erase(fd);
+        close(fd);
+    }    
+}
+
+void Worker::setChannel(uint32_t uiChannel)
+{
+    this->channel = uiChannel;
+    this->event.add(this->channel, EV_READ, this, &Worker::dealCmd, 0);
+}
+
+void Worker::dealCmd(uint32_t fd, uint16_t flag)
+{
+    
+}
+
+void Worker::setNonblock(uint32_t fd)
+{
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0)|O_NONBLOCK);
+}
+

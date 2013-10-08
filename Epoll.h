@@ -26,7 +26,8 @@ template <class T> class Epoll
         Epoll();
         ~Epoll();
         int add(uint32_t fd, uint16_t flag, T *pObject, void ((T::*pMethod)(uint32_t, uint16_t)), uint32_t timeout_ms);
-        void del(uint32_t fd, uint16_t flag);
+        int del(uint32_t fd);
+        int del(uint32_t fd, uint16_t flag);
         void loop();
 };
 
