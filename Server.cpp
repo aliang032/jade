@@ -10,10 +10,12 @@ using namespace std;
         this->config["worker1"].ip = "0.0.0.0";
         this->config["worker1"].port = 4401;
         this->config["worker1"].protocol = TCP;
+        this->config["worker1"].child_count = 4;
         this->config.insert(pair<string, ConfigItem>("worker2", stConfigItem));
         this->config["worker2"].ip = "0.0.0.0";
         this->config["worker2"].port = 4402;
         this->config["worker2"].protocol = TCP;
+        this->config["worker2"].child_count = 1;
     }
  
     Server::~Server()
@@ -33,7 +35,7 @@ using namespace std;
         int32_t sockFd;
         struct sockaddr_in stSockAddr;
         typename map<string, ConfigItem>::iterator it;
-        for(it = this->config.begin(); it != this->config.end(); ++it)
+        for(it = this->config.begin(); it != this->config.end(); it++)
         { 
             int32_t iType = it->second.protocol == TCP ? SOCK_STREAM : SOCK_DGRAM;
             if((sockFd = socket(AF_INET, iType, 0)) == -1)
@@ -63,9 +65,13 @@ using namespace std;
     void Server::createWorkers()
     {
        typename map<string, uint32_t>::iterator it;
-       for(it = this->listenedSockets.begin(); it != this->listenedSockets.end(); ++it)
+       for(it = this->listenedSockets.begin(); it != this->listenedSockets.end(); it++)
        {
-           this->forkOneWorker(it->first);
+           string strWorkerName = it->first;
+           while(this->workerPids.find(strWorkerName) == this->workerPids.end() || this->config[strWorkerName].child_count > this->workerPids[strWorkerName].size())
+           {
+               this->forkOneWorker(strWorkerName);
+           }
        }
     }
 
@@ -78,7 +84,6 @@ using namespace std;
            printf("create socketpair fail\n");
            exit(114);
         }
-
 
         pid_t pid = fork();
         if(pid < 0)
@@ -98,13 +103,17 @@ using namespace std;
                 mapPid.insert(pair<pid_t, pid_t>(pid, pid));
                 this->workerPids.insert(pair<string, map<pid_t, pid_t> >(strWorkerName, mapPid));
             }
-            else
-            {
-                this->workerPids[strWorkerName].insert(pair<pid_t, pid_t>(pid, pid));
-            }
+            this->workerPids[strWorkerName].insert(pair<pid_t, pid_t>(pid, pid));
+            this->pidWorkers.insert(pair<pid_t, string>(pid, strWorkerName));
         }
         else
         {
+            typename map<pid_t, int32_t>::iterator it;
+            for(it = this->channels.begin(); it != this->channels.end(); it++)
+            {
+                close(it->second);
+                this->event.del(it->second);
+            }
             close(sock[0]);
             this->setNonblock(sock[1]);
             Worker objWorker(this->listenedSockets[strWorkerName]);
@@ -120,7 +129,35 @@ void Server::setNonblock(uint32_t fd)
 
 void Server::dealCmdResult(uint32_t fd, uint16_t flag)
 {
-   
+    char buf[1024];
+    memset(buf, 0, 1024);
+    int32_t iCount = recv(fd, buf, 1024, 0);
+    if(iCount == 0)
+    {
+        cout<<"monitor workers\n";
+        this->monitorWorkers();
+    }   
+}
+
+void Server::monitorWorkers()
+{
+    int32_t iStatus;
+    pid_t pid = waitpid(-1, &iStatus, WNOHANG | WUNTRACED);
+    if(pid > 0)
+    {
+        printf("Worker exit pid:%d status:%d \n", pid, iStatus);
+        this->clearWorker(pid);
+        this->createWorkers();
+    }
+}
+
+void Server::clearWorker(uint32_t pid)
+{
+    string strWorkerName = this->pidWorkers[pid];
+    this->event.del(this->channels[pid]);
+    this->channels.erase(pid);
+    this->workerPids[strWorkerName].erase(pid);
+    this->pidWorkers.erase(pid);
 }
 
 void Server::loop()

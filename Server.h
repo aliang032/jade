@@ -8,7 +8,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <unistd.h> 
+#include <unistd.h>
+#include <sys/wait.h> 
 #include "Epoll.h"
 #include <errno.h>
 #include "Worker.h"
@@ -35,6 +36,7 @@ class Server
         map<string, uint32_t> listenedSockets;
         map<string, map<pid_t, pid_t> > workerPids;
         map<pid_t, int32_t> channels;
+        map<pid_t, string> pidWorkers;
         Epoll<Server> event;
     public:
         static const uint32_t MAX_BUF_SIZE;
@@ -45,6 +47,8 @@ class Server
         void createWorkers();
         void forkOneWorker(const string &strWorkerName);
         void dealCmdResult(uint32_t fd, uint16_t flag);
+        void monitorWorkers();
+        void clearWorker(uint32_t pid);
         void setNonblock(uint32_t fd);
         void loop();
 };

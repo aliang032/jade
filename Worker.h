@@ -36,8 +36,8 @@ class Worker
         void baseDealInput(uint32_t fd, uint16_t flag);
         int32_t dealInput(string &strData);
         void dealProcess(string &strData);
-        int32_t sendToClient(string & strData);
-        int32_t sendToClient(const string strData);
+        int32_t sendToClient(const string & strData);
+        int32_t sendToClient(string* strData);
         void closeConnection(uint32_t fd);
         void setChannel(uint32_t uiChannel);
         void dealCmd(uint32_t fd, uint16_t flag);
